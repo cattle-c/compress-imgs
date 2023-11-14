@@ -93,39 +93,40 @@ export async function writeFile(filePath: string, buffer: Buffer): Promise<boole
 // jpeg压缩
 export async function compressJpeg(path: string, option: JpegOption): Promise<Buffer> {
   return await sharp(path).jpeg({
-    quality: option.quality
+    ...option,
   }).toBuffer();
 }
 
 // png 压缩
 export async function compressPng(path: string, option: PngOption): Promise<Buffer> {
   return await sharp(path).png({
-    quality: option.quality
+    ...option,
   }).toBuffer();
 }
 
 // webp 压缩
 export async function compressWebp(path: string, option: WebpOption): Promise<Buffer> {
-  return await sharp(path).webp({
-    quality: option.quality
+  return await sharp(path, { animated: true }).webp({
+    ...option,
   }).toBuffer();
 }
 
 // gif 压缩
 export async function compressGif(path: string, option: GifOption): Promise<Buffer> {
-  return await sharp(path).gif({}).toBuffer();
+
+  return await sharp(path, { animated: true }).gif({ ...option,}).toBuffer();
 }
 
 // avif 压缩
 export async function compressAvif(path: string, option: AvifOption): Promise<Buffer>{
   return await sharp(path).avif({
-    quality: option.quality,
+    ...option,
   }).toBuffer();
 }
 
 // heif 压缩
 export async function compressHeif(path: string, option: HeifOption): Promise<Buffer>{
   return await sharp(path).heif({
-    quality: option.quality,
+    ...option,
   }).toBuffer();
 }

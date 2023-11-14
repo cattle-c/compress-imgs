@@ -1,14 +1,18 @@
 import path from "path";
 import { AvifOption, CompressFile, CompressOption, GifOption, HeifOption, JpegOption, PngOption, WebpOption } from "./interface.js";
 import { compressAvif, compressGif, compressHeif, compressJpeg, compressPng, compressWebp, defaultOption, getFiles, writeFile } from './utils.js'
+import { CompressImgsError, NoImage } from "./errors.js";
 
 
 export default class CompressImgs {
-  config: CompressOption
+  private config: CompressOption
   private files: CompressFile[] = []
+  private errors: Map<CompressFile, CompressImgsError> = new Map();
+  // 初始化
   constructor(config: Partial<Pick<CompressOption, 'output'>> & Omit<CompressOption, 'output'> | string) {
     this.config = this.initConfig(config);
   }
+
   // 初始化配置
   private initConfig(config: Partial<Pick<CompressOption, 'output'>> & Omit<CompressOption, 'output'> | string): CompressOption {
     if(typeof config === 'string'){
@@ -21,35 +25,43 @@ export default class CompressImgs {
     option.jpeg = Object.assign({}, defaultOption.jpeg, config.jpeg);
     return option;
   }
+
   // 获取文件
   private async initFiles():Promise<void>{
     const input = this.config.input;
     this.files = await getFiles(input);
   }
+
   // 开始压缩
   async start(): Promise<void> {
     await this.initFiles();
     console.log('[log] 获取目录文件完成');
     for(let index in this.files) {
       const file = this.files[index]
-      
-      console.log('[log] 开始压缩', file.name);
-      const buffer = await this.compress(file);
-      console.log('[log] 压缩完成', file.name);
-      if(!buffer) continue;
-      console.log('[log] 输出到文件', file.name);
-      await this.toFile(file, buffer)
-      console.log('[log] 输出到文件完成', file.name);
-      
+      try{
+        console.log('[log] 开始压缩', file.name);
+        const buffer = await this.compressImg(file);
+        console.log('[log] 压缩完成', file.name);
+        if(!buffer) continue;
+        console.log('[log] 输出到文件', file.name);
+        await this.toFile(file, buffer)
+        console.log('[log] 输出到文件完成', file.name);
+      } catch (e) {
+        this.errors.set(file, e as CompressImgsError)
+        continue;
+      }
     }
+    console.log('errors: ', JSON.stringify(this.errors));
+    
   }
+
   // 压缩文件
-  private async compress(file: CompressFile): Promise<Buffer | undefined> {
+  private async compressImg(file: CompressFile): Promise<Buffer | undefined> {
     if(!file.mime?.includes('image')) {
-      return;
+      throw new NoImage()
     }
     switch(file.mime) {
-      case  'image/jpeg':
+      case 'image/jpeg':
         return await this.jpeg(file.fullPath);
       case 'image/png':
         return await this.png(file.fullPath);
@@ -57,8 +69,15 @@ export default class CompressImgs {
         return await this.webp(file.fullPath);
       case 'image/gif':
         return await this.gif(file.fullPath);
+      case 'image/avif':
+        return await this.avif(file.fullPath);
+      case 'image/heif':
+        return await this.heif(file.fullPath);
+      default: 
+        throw new CompressImgsError()
     }
   }
+
   // jpeg 处理
   private async jpeg(path: string): Promise<Buffer> {
     const option: JpegOption = {
@@ -66,6 +85,7 @@ export default class CompressImgs {
     }
     return compressJpeg(path, option);
   }
+
   // png 处理
   private async png(path: string): Promise<Buffer> {
     const option: PngOption = {
@@ -73,6 +93,7 @@ export default class CompressImgs {
     }
     return compressPng(path, option);
   }
+
   // webp 处理
   private async webp(path: string): Promise<Buffer> {
     const option: WebpOption = {
@@ -80,10 +101,10 @@ export default class CompressImgs {
     }
     return compressWebp(path, option);
   }
+
   // gif 处理
   private async gif(path: string): Promise<Buffer> {
     const option: GifOption = {
-      quality: this.config.jpeg?.quality ?? this.config.quality,
     }
     return compressGif(path, option);
   }
@@ -103,6 +124,7 @@ export default class CompressImgs {
     }
     return compressHeif(path, option);
   }
+
   // 输出文件
   private async toFile(file: CompressFile, buffer: Buffer): Promise<boolean>{
     const output = this.config.output;
@@ -110,11 +132,3 @@ export default class CompressImgs {
     return await writeFile(outputPath, buffer)
   }
 }
-
-(async () => {
-  const app = new CompressImgs({
-    input: './img',
-    quality: 50,
-  })
-  await app.start()
-})()
